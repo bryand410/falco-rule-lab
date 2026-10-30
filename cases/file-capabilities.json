@@ -1,0 +1,132 @@
+{
+  "rule": "File Capabilities Set on Binary",
+  "cases": [
+    {
+      "label": "root runs setcap on a binary on the host",
+      "expect": "fires",
+      "why": "the case the rule exists for",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "bash", "aname": {}}
+      }
+    },
+    {
+      "label": "dpkg postinst runs setcap (legit package install)",
+      "expect": "silent",
+      "why": "package_mgmt_procs must silence it",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "dpkg", "aname": {}}
+      }
+    },
+    {
+      "label": "shell under apt-get runs setcap",
+      "expect": "silent",
+      "why": "package_mgmt_ancestor_procs must silence it",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "sh", "aname": {"2": "apt-get", "3": "bash"}}
+      }
+    },
+    {
+      "label": "rpm scriptlet runs setcap",
+      "expect": "silent",
+      "why": "rpm is in package_mgmt_binaries",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "rpm", "aname": {}}
+      }
+    },
+    {
+      "label": "snapd runs setcap",
+      "expect": "silent",
+      "why": "snapd is in package_mgmt_binaries",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "snapd", "aname": {}}
+      }
+    },
+    {
+      "label": "attacker uses chmod u+s instead",
+      "expect": "silent",
+      "why": "out of scope: the chmod rule in falco-incubating covers it",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "chmod", "pname": "bash", "aname": {}}
+      }
+    },
+    {
+      "label": "attacker inspects capabilities with getcap",
+      "expect": "silent",
+      "why": "read-only, not an escalation",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "getcap", "pname": "bash", "aname": {}}
+      }
+    },
+    {
+      "label": "setcap execve entry event (caller still on the stack)",
+      "expect": "silent",
+      "why": "no proc.name=setcap yet; also why no evt.dir filter is needed",
+      "event": {
+        "evt": {"type": "execve", "dir": ">", "num": 424242},
+        "proc": {"name": "bash", "pname": "bash", "aname": {}}
+      }
+    },
+    {
+      "label": "ordinary command",
+      "expect": "silent",
+      "why": "no false positive on baseline traffic",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "ls", "pname": "bash", "aname": {}}
+      }
+    },
+    {
+      "label": "setcap in a container as root",
+      "expect": "fires",
+      "why": "container tag: the rule must still fire inside containers",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "bash", "aname": {}},
+        "container": {"id": "9f2c", "name": "build"}
+      }
+    },
+    {
+      "label": "setcap invoked from a systemd unit at boot",
+      "expect": "fires",
+      "why": "KNOWN NOISE: tune with user_known_setcap_conditions",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "systemd", "aname": {}}
+      }
+    },
+    {
+      "label": "setcap invoked by a CI/build script",
+      "expect": "fires",
+      "why": "KNOWN NOISE: image builders tune this out",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setcap", "pname": "make", "aname": {}}
+      }
+    },
+    {
+      "label": "attacker renames setcap to /tmp/sc",
+      "expect": "silent",
+      "why": "DOCUMENTED GAP: tool-name detection is evadable by renaming",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "sc", "pname": "bash", "aname": {}}
+      }
+    },
+    {
+      "label": "attacker uses setpriv --inh-caps instead",
+      "expect": "silent",
+      "why": "DOCUMENTED GAP: setpriv does not set file capabilities",
+      "event": {
+        "evt": {"type": "execve", "dir": "<", "num": 424242},
+        "proc": {"name": "setpriv", "pname": "bash", "aname": {}}
+      }
+    }
+  ]
+}
