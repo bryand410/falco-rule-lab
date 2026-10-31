@@ -13,7 +13,7 @@
     {
       "label": "dpkg postinst runs setcap (legit package install)",
       "expect": "silent",
-      "why": "package_mgmt_procs must silence it",
+      "why": "package_mgmt_ancestor_procs must silence it: pname=dpkg",
       "event": {
         "evt": {"type": "execve", "dir": "<", "num": 424242},
         "proc": {"name": "setcap", "pname": "dpkg", "aname": {}}
@@ -31,7 +31,7 @@
     {
       "label": "rpm scriptlet runs setcap",
       "expect": "silent",
-      "why": "rpm is in package_mgmt_binaries",
+      "why": "rpm is in package_mgmt_binaries and is the parent, so the ancestor macro silences it",
       "event": {
         "evt": {"type": "execve", "dir": "<", "num": 424242},
         "proc": {"name": "setcap", "pname": "rpm", "aname": {}}
@@ -40,7 +40,7 @@
     {
       "label": "snapd runs setcap",
       "expect": "silent",
-      "why": "snapd is in package_mgmt_binaries",
+      "why": "snapd is in package_mgmt_binaries and is the parent, so the ancestor macro silences it",
       "event": {
         "evt": {"type": "execve", "dir": "<", "num": 424242},
         "proc": {"name": "setcap", "pname": "snapd", "aname": {}}

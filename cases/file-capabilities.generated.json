@@ -1,0 +1,88 @@
+{
+  "rule": "File Capabilities Set on Binary",
+  "generated_by": "casegen",
+  "note": "regenerate with: falco_rule_lab.py casegen --rules FILE --rule NAME",
+  "uncovered": [],
+  "cases": [
+    {
+      "label": "positive: evt.type=execve, proc.name=setcap",
+      "expect": "fires",
+      "why": "constructed by satisfying every positive clause",
+      "event": {
+        "evt": {
+          "type": "execve"
+        },
+        "proc": {
+          "name": "setcap"
+        }
+      }
+    },
+    {
+      "label": "excluded: proc.pname in (dnf, dnf-automatic, rpm, rpmkey, yum, 75-system-updat, rhsmcertd-worke, rh…",
+      "expect": "silent",
+      "why": "satisfies a negated clause, so the rule must stay quiet",
+      "event": {
+        "evt": {
+          "type": "execve"
+        },
+        "proc": {
+          "name": "setcap",
+          "pname": "dnf"
+        }
+      }
+    },
+    {
+      "label": "excluded: evt.num = 0",
+      "expect": "silent",
+      "why": "satisfies a negated clause, so the rule must stay quiet",
+      "event": {
+        "evt": {
+          "type": "execve",
+          "num": 0
+        },
+        "proc": {
+          "name": "setcap"
+        }
+      }
+    },
+    {
+      "label": "second listed value: evt.type=execveat",
+      "expect": "fires",
+      "why": "every value in an `in` list must be accepted, not just the first",
+      "event": {
+        "evt": {
+          "type": "execveat"
+        },
+        "proc": {
+          "name": "setcap"
+        }
+      }
+    },
+    {
+      "label": "near miss: proc.name=setcap-near-miss",
+      "expect": "silent",
+      "why": "one character off the value proc.name must match",
+      "event": {
+        "evt": {
+          "type": "execve"
+        },
+        "proc": {
+          "name": "setcap-near-miss"
+        }
+      }
+    },
+    {
+      "label": "wrong event type: evt.type=open",
+      "expect": "silent",
+      "why": "the event-type gate must reject non-exec events",
+      "event": {
+        "evt": {
+          "type": "open"
+        },
+        "proc": {
+          "name": "setcap"
+        }
+      }
+    }
+  ]
+}
