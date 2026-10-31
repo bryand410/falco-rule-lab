@@ -1,5 +1,7 @@
 # falco-rule-lab
 
+[![test](https://github.com/bryand410/falco-rule-lab/actions/workflows/test.yml/badge.svg)](https://github.com/bryand410/falco-rule-lab/actions/workflows/test.yml)
+
 Evaluate and lint a [Falco](https://falco.org) rule without running Falco.
 
 Falco's own validator (`build/checker/rules-check`) loads the ruleset into a real
@@ -20,9 +22,14 @@ you.
 ## Install
 
 ```sh
-git clone https://github.com/falcosecurity/rules
+git clone https://github.com/bryand410/falco-rule-lab
+cd falco-rule-lab
+git clone https://github.com/falcosecurity/rules rules
 pip install -r requirements.txt
 ```
+
+The upstream ruleset goes in `rules/`, next to the tool. To keep it elsewhere,
+set `FALCO_RULES_DIR`.
 
 ## Usage
 

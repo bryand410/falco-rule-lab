@@ -8,6 +8,7 @@ Run with: python tests/test_casegen.py
 
 from __future__ import annotations
 
+import os
 import sys
 import textwrap
 from pathlib import Path
@@ -17,7 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from engine import Ruleset  # noqa: E402
 from casegen import generate  # noqa: E402
 
-RULES_DIR = Path(r"C:/Users/USER/WorkBuddy AI/2026-10-30-06-01-28/scout/falco-rules/rules")
+RULES_DIR = Path(os.environ.get("FALCO_RULES_DIR")
+                 or Path(__file__).resolve().parent.parent / "rules")
 
 RESULTS: list[tuple[str, bool, str]] = []
 
@@ -196,24 +198,28 @@ def main() -> int:
           any("empty list" in note for note in notes), True)
 
     # 9. Across the whole upstream ruleset: no generator bug may remain, and
-    #    every rule that does generate must verify.
-    tot = generated = 0
-    bad: list[str] = []
-    for name in ("falco_rules", "falco-incubating_rules", "falco-sandbox_rules"):
-        upstream = Ruleset(RULES_DIR / f"{name}.yaml")
-        for rule_name in upstream.rules:
-            tot += 1
-            made, notes = generate(upstream, rule_name)
-            if made:
-                generated += 1
-                node = upstream.compile_rule(rule_name)
-                for case in made:
-                    if node.evaluate(case["event"]) != (case["expect"] == "fires"):
-                        bad.append(f"{rule_name}: {case['label']}")
-            elif any("bug in the generator" in note for note in notes):
-                bad.append(f"{rule_name}: {notes[0][:80]}")
-    check("upstream: no unverified case", bad, [])
-    check("upstream: covers at least 95 of 97 rules", generated >= 95, True)
+    #    every rule that does generate must verify. Skipped when the ruleset is
+    #    not checked out; set FALCO_RULES_DIR to run it.
+    if not (RULES_DIR / "falco_rules.yaml").is_file():
+        print(f"skip: no upstream ruleset at {RULES_DIR}")
+    else:
+        tot = generated = 0
+        bad: list[str] = []
+        for name in ("falco_rules", "falco-incubating_rules", "falco-sandbox_rules"):
+            upstream = Ruleset(RULES_DIR / f"{name}.yaml")
+            for rule_name in upstream.rules:
+                tot += 1
+                made, notes = generate(upstream, rule_name)
+                if made:
+                    generated += 1
+                    node = upstream.compile_rule(rule_name)
+                    for case in made:
+                        if node.evaluate(case["event"]) != (case["expect"] == "fires"):
+                            bad.append(f"{rule_name}: {case['label']}")
+                elif any("bug in the generator" in note for note in notes):
+                    bad.append(f"{rule_name}: {notes[0][:80]}")
+        check("upstream: no unverified case", bad, [])
+        check("upstream: covers at least 95 of 97 rules", generated >= 95, True)
 
     for name in tmp.iterdir():
         name.unlink()

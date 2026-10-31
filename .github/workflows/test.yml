@@ -1,0 +1,52 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The tool is tested against the real ruleset, not a fixture: a model of
+      # the condition language is only worth something if it reads the language
+      # as it is actually written upstream.
+      - name: Check out falcosecurity/rules
+        uses: actions/checkout@v4
+        with:
+          repository: falcosecurity/rules
+          path: rules
+
+      - run: pip install -r requirements.txt
+
+      - name: Condition language
+        run: python tests/test_engine.py
+
+      - name: Case generator
+        run: python tests/test_casegen.py
+
+      - name: Every upstream file parses
+        run: |
+          for f in rules/falco_rules.yaml \
+                   rules/falco-incubating_rules.yaml \
+                   rules/falco-sandbox_rules.yaml; do
+            python falco_rule_lab.py parse --rules "$f"
+          done
+
+      - name: The rule this tool was written for
+        run: |
+          python falco_rule_lab.py style \
+            --rules rules/falco-sandbox_rules.yaml \
+            --rule "File Capabilities Set on Binary"
+          python falco_rule_lab.py check \
+            --rules rules/falco-sandbox_rules.yaml \
+            --cases cases/file-capabilities.json
+          python falco_rule_lab.py self-test \
+            --rules rules/falco-sandbox_rules.yaml \
+            --rule "File Capabilities Set on Binary"
