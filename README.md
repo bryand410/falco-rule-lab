@@ -84,8 +84,8 @@ Two things follow, and they are the reason the command exists:
 - **The generator can fail in public.** When it cannot invert a clause it names
   the clause. When it builds an event the rule does not fire on, it says so.
 
-Across the upstream ruleset it builds a verified positive case for **95 of 97
-rules**, 777 cases in total. The two it declines are both honest:
+Across `falcosecurity/rules` at `e7b066b` it builds a verified positive case for
+**94 of 96 rules**, 771 cases in total. The two it declines are both honest:
 
 | Rule | Why |
 | --- | --- |
@@ -122,6 +122,17 @@ The curated file and the generated one are complementary. `casegen` proves the
 mechanical part; the curated file adds what no generator can know — an attacker
 using `chmod u+s` instead, `setpriv --inh-caps`, a renamed `setcap`, the known
 noise from image builders.
+
+`cases/file-capabilities.rule.yaml` is the hunk the pull request proposes,
+generated from the diff rather than copied by hand. Concatenating it onto the
+upstream sandbox file gives a ruleset the curated cases can be checked against:
+
+```sh
+cat upstream/rules/falco-sandbox_rules.yaml cases/file-capabilities.rule.yaml \
+  > /tmp/sandbox.yaml
+python falco_rule_lab.py check --rules /tmp/sandbox.yaml \
+  --cases cases/file-capabilities.json
+```
 
 ## What it caught
 

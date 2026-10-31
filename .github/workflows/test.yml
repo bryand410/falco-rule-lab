@@ -43,14 +43,20 @@ jobs:
             python falco_rule_lab.py parse --rules "$f"
           done
 
+      # The rule is proposed upstream, not part of it, so the ruleset it needs
+      # is the upstream file plus the hunk kept in cases/. Reconstructed here
+      # exactly as the README describes, so the instructions are tested too.
       - name: The rule this tool was written for
         run: |
+          cat "$FALCO_RULES_DIR/falco-sandbox_rules.yaml" \
+              cases/file-capabilities.rule.yaml > "$RUNNER_TEMP/sandbox.yaml"
+          python falco_rule_lab.py parse --rules "$RUNNER_TEMP/sandbox.yaml"
           python falco_rule_lab.py style \
-            --rules "$FALCO_RULES_DIR/falco-sandbox_rules.yaml" \
+            --rules "$RUNNER_TEMP/sandbox.yaml" \
             --rule "File Capabilities Set on Binary"
           python falco_rule_lab.py check \
-            --rules "$FALCO_RULES_DIR/falco-sandbox_rules.yaml" \
+            --rules "$RUNNER_TEMP/sandbox.yaml" \
             --cases cases/file-capabilities.json
           python falco_rule_lab.py self-test \
-            --rules "$FALCO_RULES_DIR/falco-sandbox_rules.yaml" \
+            --rules "$RUNNER_TEMP/sandbox.yaml" \
             --rule "File Capabilities Set on Binary"

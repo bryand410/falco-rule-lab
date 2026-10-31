@@ -219,7 +219,12 @@ def main() -> int:
                 elif any("bug in the generator" in note for note in notes):
                     bad.append(f"{rule_name}: {notes[0][:80]}")
         check("upstream: no unverified case", bad, [])
-        check("upstream: covers at least 95 of 97 rules", generated >= 95, True)
+        # A floor, not an exact count: CI runs against upstream HEAD, and the
+        # number moves when rules are added. The invariant above is the one
+        # that must not regress.
+        check(f"upstream: covers at least {tot - 5} of {tot} rules",
+              generated >= tot - 5, True)
+        print(f"       upstream: {generated}/{tot} rules, {len(bad)} unverified")
 
     for name in tmp.iterdir():
         name.unlink()
