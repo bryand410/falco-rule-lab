@@ -19,7 +19,7 @@ from engine import Ruleset  # noqa: E402
 from casegen import generate  # noqa: E402
 
 RULES_DIR = Path(os.environ.get("FALCO_RULES_DIR")
-                 or Path(__file__).resolve().parent.parent / "rules")
+                 or Path(__file__).resolve().parent.parent / "upstream" / "rules")
 
 RESULTS: list[tuple[str, bool, str]] = []
 

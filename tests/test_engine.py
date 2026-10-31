@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from engine import ConditionError, Ruleset, tokenize, Parser  # noqa: E402
 
 RULES_DIR = Path(os.environ.get("FALCO_RULES_DIR")
-                 or Path(__file__).resolve().parent.parent / "rules")
+                 or Path(__file__).resolve().parent.parent / "upstream" / "rules")
 
 RESULTS: list[tuple[str, bool, str]] = []
 
@@ -42,8 +42,9 @@ def main() -> int:
     if not (RULES_DIR / "falco_rules.yaml").is_file():
         print(f"no upstream ruleset at {RULES_DIR}\n"
               "  git clone https://github.com/falcosecurity/rules "
-              f"{RULES_DIR}\n"
-              "  or set FALCO_RULES_DIR to a checkout")
+              f"{RULES_DIR.parent}\n"
+              "  (that repository keeps its files in rules/, hence upstream/rules)\n"
+              "  or set FALCO_RULES_DIR to a directory holding falco_rules.yaml")
         return 2
     rs = Ruleset(RULES_DIR / "falco_rules.yaml")
 

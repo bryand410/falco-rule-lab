@@ -24,38 +24,39 @@ you.
 ```sh
 git clone https://github.com/bryand410/falco-rule-lab
 cd falco-rule-lab
-git clone https://github.com/falcosecurity/rules rules
+git clone https://github.com/falcosecurity/rules upstream
 pip install -r requirements.txt
 ```
 
-The upstream ruleset goes in `rules/`, next to the tool. To keep it elsewhere,
-set `FALCO_RULES_DIR`.
+That repository keeps its files in `rules/`, so the ruleset lands in
+`upstream/rules`. To keep it elsewhere, set `FALCO_RULES_DIR` to the directory
+holding `falco_rules.yaml`.
 
 ## Usage
 
 ```sh
 # 1. does every macro and rule in the file parse?
-python falco_rule_lab.py parse --rules rules/falco-sandbox_rules.yaml
+python falco_rule_lab.py parse --rules upstream/rules/falco-sandbox_rules.yaml
 
 # 2. style guide compliance, plus a calibration line against the rest of the file
 python falco_rule_lab.py style \
-    --rules rules/falco-sandbox_rules.yaml \
+    --rules upstream/rules/falco-sandbox_rules.yaml \
     --rule "File Capabilities Set on Binary"
 
 # 3. behavioural cases: hand-written, or generated (see below)
 python falco_rule_lab.py check \
-    --rules rules/falco-sandbox_rules.yaml \
+    --rules upstream/rules/falco-sandbox_rules.yaml \
     --cases cases/file-capabilities.json
 
 # 4. generate cases from the rule itself, then verify them against it
 python falco_rule_lab.py casegen \
-    --rules rules/falco-sandbox_rules.yaml \
+    --rules upstream/rules/falco-sandbox_rules.yaml \
     --rule "File Capabilities Set on Binary" \
     --out cases/file-capabilities.generated.json
 
 # 5. prove the style checker can fail: it mutates a compliant rule five ways
 python falco_rule_lab.py self-test \
-    --rules rules/falco-sandbox_rules.yaml \
+    --rules upstream/rules/falco-sandbox_rules.yaml \
     --rule "File Capabilities Set on Binary"
 ```
 
