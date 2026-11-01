@@ -77,12 +77,20 @@ def main() -> int:
         # -- counter-proof: the check is wired, not merely correct ---------
         # Take a real rule and misspell one field it uses. The linter must
         # name the field and suggest the real one.
+        #
+        # The rule is picked from the file rather than named: this test runs
+        # against upstream, where the rule proposed in falcosecurity/rules#397
+        # does not exist yet, and a hard-coded name made the suite pass here
+        # and fail in CI.
         rs = Ruleset(RULES_DIR / "falco-sandbox_rules.yaml")
-        broken = dict(rs.rules["File Capabilities Set on Binary"])
+        subject = next(r for r in rs.rules.values()
+                       if "proc.name" in str(r.get("condition", "")))
+        broken = dict(subject)
         broken["condition"] = broken["condition"].replace("proc.name", "proc.nmae", 1)
         hard, _ = lab.style_findings(rs, broken)
         hits = [h for h in hard if "proc.nmae" in h]
-        check("counter-proof: a misspelled field is reported", len(hits), 1)
+        check(f"counter-proof: a misspelled field is reported "
+              f"({subject['rule']})", len(hits), 1)
         check("counter-proof: the report suggests the real field",
               "proc.name" in (hits[0] if hits else ""), True)
     else:
