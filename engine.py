@@ -29,6 +29,7 @@ rather than silently misreading them.
 
 from __future__ import annotations
 
+import fnmatch
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,7 +38,8 @@ from typing import Any, Iterable
 MISSING = object()
 
 COMPARATORS = {"=", "==", "!=", "<", "<=", ">", ">="}
-STRING_OPS = {"contains", "icontains", "startswith", "endswith", "glob", "bcontains"}
+STRING_OPS = {"contains", "icontains", "startswith", "endswith", "glob",
+              "bcontains", "bstartswith"}
 SET_OPS = {"in", "intersects", "pmatch"}
 TRANSFORMERS = {"basename", "tolower", "toupper", "len"}
 KEYWORDS = {"and", "or", "not", "exists"} | STRING_OPS | SET_OPS
@@ -90,6 +92,15 @@ def tokenize(text: str) -> list[Token]:
             j, buf = i + 1, []
             while j < n and text[j] != c:
                 if text[j] == "\\" and j + 1 < n:
+                    # \xHH names a byte, and a byte buffer such as evt.buffer
+                    # is compared byte for byte: "a\x00b" is not "ab".
+                    if text[j + 1] == "x" and j + 3 < n:
+                        try:
+                            buf.append(chr(int(text[j + 2:j + 4], 16)))
+                            j += 4
+                            continue
+                        except ValueError:
+                            pass
                     buf.append(_ESCAPES.get(text[j + 1], text[j + 1]))
                     j += 2
                 else:
@@ -100,10 +111,24 @@ def tokenize(text: str) -> list[Token]:
             tokens.append(Token("string", "".join(buf), i))
             i = j + 1
             continue
-        j = i
-        while j < n and text[j] not in _STOP:
+        # A bareword may contain a bracketed character class, as in the pmatch
+        # pattern /opt/di[!r]/subdir. Upstream accepts those (see
+        # filter_op_pmatch.ut.cpp), so '!' inside brackets is data, not an
+        # operator. Outside brackets '!' still ends the word, which keeps
+        # `proc.name!=sshd` tokenising as an operator.
+        j, depth = i, 0
+        while j < n:
+            ch = text[j]
+            if ch == "[":
+                depth += 1
+            elif ch == "]" and depth:
+                depth -= 1
+            elif not depth and ch in _STOP:
+                break
             j += 1
         word = text[i:j]
+        if not word:
+            raise ConditionError(f"cannot tokenize at {i}: {text[max(0, i - 20):i + 20]!r}")
         kind = "number" if re.fullmatch(r"\d+", word) else "word"
         tokens.append(Token(kind, word, i))
         i = j
@@ -233,6 +258,11 @@ class Transform(Operand):
         if v is MISSING:
             return MISSING
         if self.fn == "len":
+            # len() of a byte buffer is its byte count, not the length of the
+            # container that happens to hold it. filter_transformer.ut.cpp
+            # asserts len(evt.arg.data) == 6 for a six-byte read.
+            if isinstance(v, dict) and set(v) == {"$bytes"}:
+                return len(_as_bytes(v))
             return len(v) if hasattr(v, "__len__") else len(str(v))
         text = _as_text(v)
         if self.fn == "tolower":
@@ -240,7 +270,9 @@ class Transform(Operand):
         if self.fn == "toupper":
             return text.upper()
         if self.fn == "basename":
-            return text.rsplit("/", 1)[-1] if "/" in text else ""
+            # A name without a slash is its own basename; returning "" would
+            # make basename(proc.exepath) = sh false for a bare "sh".
+            return text.rsplit("/", 1)[-1]
         raise ConditionError(f"unknown transformer {self.fn!r}")
 
 
@@ -296,8 +328,18 @@ def _compare(op: str, a: Any, b: Any) -> bool:
     if op == "bcontains":
         needle = bytes.fromhex(_as_text(b))
         return needle in _as_bytes(a)
+    if op == "bstartswith":
+        return _as_bytes(a).startswith(bytes.fromhex(_as_text(b)))
 
     items = a if isinstance(a, (list, tuple)) else [a]
+    # A byte-buffer field compares as bytes, never as decoded text: evt.buffer
+    # is frequently not valid UTF-8, and a decode/encode round trip loses the
+    # bytes it cannot represent.
+    if isinstance(a, (bytes, bytearray)) or (isinstance(a, dict) and set(a) == {"$bytes"}):
+        if op in ("=", "=="):
+            return _as_bytes(a) == _as_bytes(b)
+        if op == "!=":
+            return _as_bytes(a) != _as_bytes(b)
     if op == "in":
         return any(_as_text(x) == _as_text(b) for x in items)
     if op == "intersects":
@@ -359,13 +401,42 @@ def _glob(text: str, pattern: str) -> bool:
     return re.match("".join(out), text) is not None
 
 
-def _pmatch(path: str, prefix: str) -> bool:
-    """True when path is prefix or lives below it, on component boundaries.
+def _pmatch(path: str, pattern: str) -> bool:
+    """Falco's `pmatch`: the pattern matches a leading run of path components.
 
+    Each component is compared with fnmatch, so a component may carry `*`, `?`
+    or a bracketed class, and the pattern may stop before the end of the path.
     `/var/run` matches `/var/run` and `/var/run/x`, never `/var/runx`.
+
+    This is not a string prefix test, and the difference is observable: on
+    `/opt/dir/subdir/file.txt`, `pmatch (/opt/*)` and `pmatch (/opt/*/subdir)`
+    are true and `pmatch (/opt/di/subdir)` is false. Those four lines are taken
+    from falcosecurity/libs userspace/libsinsp/test/filter_op_pmatch.ut.cpp,
+    which is the authority for this operator; the earlier implementation here
+    got six of that file's sixteen assertions wrong.
     """
-    prefix = prefix.rstrip("/")
-    return path == prefix or path.startswith(prefix + "/")
+    if pattern.strip("/") == "":
+        return path.startswith("/")
+    path_parts = [p for p in path.split("/") if p]
+    pat_parts = [p for p in pattern.split("/") if p]
+    if len(pat_parts) > len(path_parts):
+        return False
+    return all(fnmatch.fnmatchcase(p, q) for p, q in zip(path_parts, pat_parts))
+
+
+def _require_hex(operand: Operand, op: str) -> None:
+    """Reject a malformed byte literal when the condition is compiled.
+
+    Falco refuses to load such a filter (filter_op_bytebuf.ut.cpp asserts that
+    `evt.buffer bcontains 2g` does not compile). Accepting it here would move
+    the failure from load time to the first event, where it would look like the
+    rule simply does not match rather than like the rule is broken.
+    """
+    if not isinstance(operand, Literal):
+        return
+    text = str(operand.raw)
+    if not text or len(text) % 2 or not re.fullmatch(r"[0-9a-fA-F]+", text):
+        raise ConditionError(f"{op} takes a hex byte string, got {text!r}")
 
 
 # --------------------------------------------------------------------------
@@ -461,7 +532,10 @@ class Parser:
                 return Exists(left)
             if word in STRING_OPS:
                 self.take()
-                return Compare(word, left, self.operand(rhs=True))
+                node = Compare(word, left, self.operand(rhs=True))
+                if word in ("bcontains", "bstartswith"):
+                    _require_hex(node.right, word)
+                return node
             if word in SET_OPS:
                 self.take()
                 return SetOp(word, left, self.value_list())

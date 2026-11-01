@@ -35,6 +35,12 @@ jobs:
       - name: Case generator
         run: python tests/test_casegen.py
 
+      # The expectations in tests/conformance.json are transcribed from the
+      # Falco maintainers' own unit tests. No network access is needed: the
+      # assertions are checked in, with the file each came from.
+      - name: Conformance with Falco's own tests
+        run: python tests/test_conformance.py
+
       - name: Every upstream file parses
         run: |
           for f in "$FALCO_RULES_DIR"/falco_rules.yaml \

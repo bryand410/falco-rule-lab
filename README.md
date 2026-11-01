@@ -173,6 +173,46 @@ check now applies only when the author wrote the exec restriction; expansion-onl
 cases are reported as a note. A checker that fails merged upstream code is a
 checker nobody runs.
 
+## Conformance
+
+`test_engine.py` and `test_casegen.py` check this implementation against itself.
+They pin bugs that were found, but they cannot show that the semantics are
+Falco's. `test_conformance.py` can, because its expectations are transcribed
+from the files the Falco maintainers use to define what each operator means —
+`falcosecurity/libs`, `userspace/libsinsp/test/`:
+
+| Source | Assertions |
+| --- | --- |
+| `filter_op_pmatch.ut.cpp` | 16 |
+| `filter_op_contains.ut.cpp` | 6 |
+| `filter_op_bytebuf.ut.cpp` | 16 |
+| `filter_op_numeric_compare.ut.cpp` | 19 |
+| `filter_transformer.ut.cpp` | 8 |
+
+All 71 hold. That number is not the interesting part — it held on the first run
+only after four defects were fixed, and every one of them was in code that the
+other two suites already called green:
+
+- **`pmatch` was a string prefix test.** Upstream compares path *components*
+  with `fnmatch`, so the pattern may be shorter than the path and may carry
+  wildcards: on `/opt/dir/subdir/file.txt`, `pmatch (/opt/*)` and
+  `pmatch (/opt/*/subdir)` are true and `pmatch (/opt/di/subdir)` is false. The
+  old implementation got 6 of those 16 assertions wrong, including the two that
+  a rule author is most likely to rely on.
+- **The tokenizer aborted on `[!r]`.** `!` was treated as the start of an
+  operator everywhere, so a bracketed character class inside a `pmatch` pattern
+  was a syntax error.
+- **A byte buffer was compared as decoded text.** `evt.buffer = "a\x00b"` is not
+  `evt.buffer = "ab"`, and a decode/encode round trip cannot represent the bytes
+  that are not valid UTF-8. `len()` on a buffer had the same defect and returned
+  the length of the container holding it.
+- **`basename` returned "" for a name with no slash**, so
+  `basename(proc.exepath) = sh` was false for a bare `sh`.
+
+The bench is checked for the ability to fail: reinstating the old string-prefix
+`pmatch` drops the suite to 66/71, and restoring the current one returns it to
+71/71. A conformance suite that has never failed is a suite that cannot.
+
 ## Limits
 
 - It models the **condition language**, not the engine. Field names and
@@ -182,15 +222,21 @@ checker nobody runs.
   field-to-field comparisons, a value inside an empty list — are reported, not
   guessed.
 - Transformers are supported for evaluation (`basename`, `tolower`, `toupper`,
-  `len`) but not for inversion.
+  `len`) but not for inversion. `join` and `concat` are not implemented, and the
+  `multivalue_transformer_*` assertions in `filter_transformer.ut.cpp` are
+  therefore not transcribed.
+- `\xHH` escapes are supported, but a byte above `0x7f` is encoded as UTF-8
+  rather than as a single raw byte. No rule in the upstream ruleset uses `\x`
+  at all, so this has no effect there; it would matter for a buffer field.
 - Passing here does not mean the rule loads. Always run
   `build/checker/rules-check validate` before opening a pull request.
 
 ## Tests
 
 ```sh
-python tests/test_engine.py    # the condition language
-python tests/test_casegen.py   # the generator, and its coverage of upstream
+python tests/test_engine.py       # the condition language
+python tests/test_casegen.py      # the generator, and its coverage of upstream
+python tests/test_conformance.py  # the semantics, against Falco's own tests
 ```
 
 ## License

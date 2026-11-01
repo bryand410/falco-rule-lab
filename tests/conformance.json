@@ -1,0 +1,155 @@
+{
+  "note": "Assertions transcribed from the Falco maintainers' own unit tests in falcosecurity/libs. The expectations are theirs, not this repository's; the events are the small fixtures those tests build inline. Each group names its source file so any claim here can be checked against upstream. Run with tests/test_conformance.py.",
+  "upstream": {
+    "repo": "falcosecurity/libs",
+    "path": "userspace/libsinsp/test"
+  },
+  "groups": [
+    {
+      "source": "filter_op_pmatch.ut.cpp",
+      "case": "pmatch",
+      "event": {"fd": {"name": "/opt/dir/subdir/file.txt"}},
+      "assertions": [
+        {"expr": "fd.name pmatch (/opt/dir)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/dir/subdir)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/dir2)", "expect": false},
+        {"expr": "fd.name pmatch (/opt/dir, /opt/dir2)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/dir3, /opt/dir2)", "expect": false},
+        {"expr": "fd.name pmatch (/opt/*)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/*/subdir)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/di?/subdir)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/dii?/subdir)", "expect": false},
+        {"expr": "fd.name pmatch (/opt/di[r]/subdir)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/di[!r]/subdir)", "expect": false},
+        {"expr": "fd.name pmatch (/opt/di[t]/subdir)", "expect": false},
+        {"expr": "fd.name pmatch (/opt/di/subdir)", "expect": false},
+        {"expr": "fd.name pmatch (/opt/*/subdir2)", "expect": false},
+        {"expr": "fd.name pmatch (/opt/*/*)", "expect": true},
+        {"expr": "fd.name pmatch (/opt/*/*/subsubdir)", "expect": false}
+      ]
+    },
+    {
+      "source": "filter_op_contains.ut.cpp",
+      "case": "contains_icontains",
+      "event": {
+        "fd": {"name": "/opt/dir/SUBDIR/file.txt"},
+        "evt": {"arg": {"flags": "O_RDWR|O_CREAT"}}
+      },
+      "assertions": [
+        {"expr": "evt.arg.flags contains O_CREAT", "expect": true},
+        {"expr": "evt.arg.flags contains O_TMPFILE", "expect": false},
+        {"expr": "evt.arg.flags icontains O_CREAT", "expect": true},
+        {"expr": "fd.name contains /dir", "expect": true},
+        {"expr": "fd.name icontains /subdir", "expect": true},
+        {"expr": "fd.name icontains notthis", "expect": false}
+      ]
+    },
+    {
+      "source": "filter_op_bytebuf.ut.cpp",
+      "case": "bytebuf_bcontains_bstartswith",
+      "event": {"evt": {"buffer": {"$bytes": "68656c6c6f"}}},
+      "assertions": [
+        {"expr": "evt.buffer bcontains 68656c6c6f", "expect": true},
+        {"expr": "evt.buffer bcontains 656c6C", "expect": true},
+        {"expr": "evt.buffer bcontains 20", "expect": false},
+        {"expr": "evt.buffer bcontains 656c6cAA", "expect": false},
+        {"expr": "evt.buffer bstartswith 68", "expect": true},
+        {"expr": "evt.buffer bstartswith 68656c6c6f", "expect": true},
+        {"expr": "evt.buffer bstartswith 65", "expect": false},
+        {"expr": "evt.buffer bstartswith 656c6C", "expect": false},
+        {"expr": "evt.buffer bstartswith 20", "expect": false},
+        {"expr": "evt.buffer bstartswith 656c6cAA", "expect": false}
+      ],
+      "must_not_compile": [
+        "evt.buffer bcontains",
+        "evt.buffer bcontains 2",
+        "evt.buffer bcontains 2g",
+        "evt.buffer bstartswith",
+        "evt.buffer bstartswith 2",
+        "evt.buffer bstartswith 2g"
+      ]
+    },
+    {
+      "source": "filter_op_bytebuf.ut.cpp",
+      "case": "bytebuf_matches_nul",
+      "event": {"evt": {"buffer": {"$bytes": "610062"}}},
+      "assertions": [
+        {"expr": "evt.buffer = \"a\\x00b\"", "expect": true},
+        {"expr": "evt.buffer = \"ab\"", "expect": false},
+        {"expr": "evt.buffer bcontains 610062", "expect": true},
+        {"expr": "evt.buffer bcontains 610162", "expect": false},
+        {"expr": "evt.buffer bstartswith 6100", "expect": true},
+        {"expr": "evt.buffer bstartswith 6101", "expect": false}
+      ]
+    },
+    {
+      "source": "filter_op_numeric_compare.ut.cpp",
+      "case": "signed_int_compare",
+      "event": {"evt": {"cpu": 1, "rawarg": {"res": -22}}},
+      "assertions": [
+        {"expr": "evt.cpu < 300", "expect": true},
+        {"expr": "evt.cpu > 300", "expect": false},
+        {"expr": "evt.cpu < 2", "expect": true},
+        {"expr": "evt.cpu > -500", "expect": true},
+        {"expr": "evt.cpu < 500", "expect": true},
+        {"expr": "evt.cpu <= 500", "expect": true},
+        {"expr": "evt.cpu <= 1025", "expect": true},
+        {"expr": "evt.cpu >= 1025", "expect": false},
+        {"expr": "evt.rawarg.res > 0", "expect": false},
+        {"expr": "evt.rawarg.res < 0", "expect": true},
+        {"expr": "evt.rawarg.res > 4294967295", "expect": false},
+        {"expr": "evt.rawarg.res < -1", "expect": true},
+        {"expr": "evt.rawarg.res > -65535", "expect": true}
+      ]
+    },
+    {
+      "source": "filter_op_numeric_compare.ut.cpp",
+      "case": "negative_fd",
+      "event": {"fd": {"num": -1}},
+      "assertions": [
+        {"expr": "fd.num >= 0", "expect": false},
+        {"expr": "fd.num > 0", "expect": false},
+        {"expr": "fd.num < 0", "expect": true},
+        {"expr": "fd.num > 4294967295", "expect": false},
+        {"expr": "fd.num < -1", "expect": false},
+        {"expr": "fd.num > -65535", "expect": true}
+      ]
+    },
+    {
+      "source": "filter_transformer.ut.cpp",
+      "case": "basename_transformer",
+      "event": {"fd": {"name": "/tmp/file_to_run"}},
+      "assertions": [
+        {"expr": "basename(fd.name) = file_to_run", "expect": true},
+        {"expr": "basename(fd.name) = /tmp/file_to_run", "expect": false}
+      ]
+    },
+    {
+      "source": "filter_transformer.ut.cpp",
+      "case": "len_transformer_open",
+      "event": {"fd": {"name": "/tmp/file_to_run", "types": ["file"]}},
+      "assertions": [
+        {"expr": "len(fd.types) = 1", "expect": true},
+        {"expr": "len(fd.types) > 0", "expect": true},
+        {"expr": "len(fd.types) = 0", "expect": false},
+        {"expr": "len(fd.name) = 16", "expect": true}
+      ]
+    },
+    {
+      "source": "filter_transformer.ut.cpp",
+      "case": "len_transformer_socket",
+      "event": {"fd": {"types": ["ipv4", "file"]}},
+      "assertions": [
+        {"expr": "len(fd.types) = 2", "expect": true}
+      ]
+    },
+    {
+      "source": "filter_transformer.ut.cpp",
+      "case": "len_transformer_bytebuf",
+      "event": {"evt": {"arg": {"data": {"$bytes": "010203040506"}}}},
+      "assertions": [
+        {"expr": "len(evt.arg.data) == 6", "expect": true}
+      ]
+    }
+  ]
+}
