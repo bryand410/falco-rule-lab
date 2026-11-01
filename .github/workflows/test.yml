@@ -41,6 +41,9 @@ jobs:
       - name: Conformance with Falco's own tests
         run: python tests/test_conformance.py
 
+      - name: Field names
+        run: python tests/test_fields.py
+
       - name: Every upstream file parses
         run: |
           for f in "$FALCO_RULES_DIR"/falco_rules.yaml \

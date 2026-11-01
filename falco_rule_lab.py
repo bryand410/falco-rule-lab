@@ -32,9 +32,11 @@ from engine import (
     ConditionError,
     Ruleset,
     evt_types,
+    fields_in,
     leading_fields,
 )
 from casegen import generate as generate_cases, to_case_file
+import fields as field_names
 
 MATURITY = {"maturity_stable", "maturity_incubating", "maturity_sandbox", "maturity_deprecated"}
 
@@ -84,6 +86,13 @@ def style_findings(rs: Ruleset, r: dict) -> tuple[list[str], list[str]]:
 
     if node is not None:
         types = evt_types(node)
+        # A field Falco does not know is silent, not loud: it evaluates as
+        # absent and the rule simply never matches. That is the one defect
+        # neither the style guide nor the upstream CI can see.
+        for path in sorted(fields_in(node)):
+            problem = field_names.check(path)
+            if problem:
+                hard.append(problem)
         if not types:
             hard.append("condition has no evt.type restriction (performance penalty)")
         else:

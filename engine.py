@@ -743,3 +743,33 @@ def _children(node: Node) -> tuple[Node, ...]:
     if isinstance(node, Not):
         return (node.operand,)
     return ()
+
+
+def fields_in(node: Node) -> set[str]:
+    """Every field the condition reads, transformers included.
+
+    Unlike `_children`, this descends into the operands of a comparison: those
+    are where the field names live, and they are what a misspelling hides in.
+    A field that does not exist does not raise. It evaluates as absent, the
+    comparison is false, and the rule reads as "this event is not interesting"
+    -- which is indistinguishable from the rule working.
+    """
+    out: set[str] = set()
+    stack: list[Any] = [node]
+    while stack:
+        n = stack.pop()
+        if isinstance(n, Field):
+            out.add(n.path)
+        elif isinstance(n, Transform):
+            stack.append(n.inner)
+        elif isinstance(n, (And, Or)):
+            stack.extend((n.left, n.right))
+        elif isinstance(n, Not):
+            stack.append(n.operand)
+        elif isinstance(n, Compare):
+            stack.extend((n.left, n.right))
+        elif isinstance(n, SetOp):
+            stack.append(n.left)
+        elif isinstance(n, Exists):
+            stack.append(n.left)
+    return out

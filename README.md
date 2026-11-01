@@ -173,6 +173,35 @@ check now applies only when the author wrote the exec restriction; expansion-onl
 cases are reported as a note. A checker that fails merged upstream code is a
 checker nobody runs.
 
+## Field names
+
+A field Falco does not know does not raise. It evaluates as absent, the
+comparison is false, and the rule reads as "this event is not interesting" —
+indistinguishable from a rule that works. `proc.nmae = bash` is a rule that
+never fires and never complains, and nothing in the upstream CI looks at it:
+`rules-check validate` proves the file loads, not that its fields exist.
+
+`fields.py` checks every field a condition reads, transformers included, against
+the reference table Falco publishes (268 names). Three forms are accepted:
+
+| Form | Example | Why |
+| --- | --- | --- |
+| documented name | `proc.name` | — |
+| name with a bracket argument | `proc.aname[2]`, `container.mount.dest[/etc]` | every list field takes one |
+| extension of a documented name | `evt.arg.flags`, `k8s.pod.label.app.kubernetes.io/name` | the documentation says these are extended |
+
+Anything else is a hard finding with a suggestion: `proc.nmae` reports
+`unknown field 'proc.nmae'; did you mean 'proc.name'?`
+
+Calibration: **0 of 97** upstream rules fail, across 89 distinct field
+references. The counter-proof is in `tests/test_fields.py` — it takes the real
+`File Capabilities Set on Binary` rule, misspells `proc.name`, and asserts the
+linter names the field and suggests the real one.
+
+The list is checked in, so the checker works offline. `tools/update-fields.py`
+regenerates it, and `--check` fails when it has drifted, which matters because a
+stale list produces false positives on newly added fields.
+
 ## Conformance
 
 `test_engine.py` and `test_casegen.py` check this implementation against itself.
@@ -215,9 +244,11 @@ The bench is checked for the ability to fail: reinstating the old string-prefix
 
 ## Limits
 
-- It models the **condition language**, not the engine. Field names and
-  `evt.arg` semantics are not validated; a typo in a field name evaluates to
-  absent and reads as "silent".
+- It models the **condition language**, not the engine. Field *names* are
+  validated, but not whether an event carries them: `evt.arg.nosucharg` is a
+  documented field form and passes, and no event will ever provide it.
+- `evt.arg` semantics are not modelled, so a condition that is correct in the
+  language can still be wrong about which syscall produces which argument.
 - `casegen` inverts by assignment. Clauses it cannot invert — `basename(x) = y`,
   field-to-field comparisons, a value inside an empty list — are reported, not
   guessed.
@@ -237,6 +268,7 @@ The bench is checked for the ability to fail: reinstating the old string-prefix
 python tests/test_engine.py       # the condition language
 python tests/test_casegen.py      # the generator, and its coverage of upstream
 python tests/test_conformance.py  # the semantics, against Falco's own tests
+python tests/test_fields.py       # field names, and the check being wired in
 ```
 
 ## License

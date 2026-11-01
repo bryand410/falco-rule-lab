@@ -1,0 +1,32 @@
+# Documented names that a condition may extend, one per line.
+#
+# evt.arg.flags is valid although evt.arg.flags is not itself a documented
+# name; the documentation for evt.arg says the argument is named by the
+# syscall. The list is derived from the reference table: a name qualifies
+# when its own description shows an extension of itself, plus every
+# '*.label' field, which takes the label key as a suffix.
+container.label
+container.mount
+container.mount.dest
+container.mount.mode
+container.mount.propagation
+container.mount.rdwr
+container.mount.source
+evt.abspath
+evt.arg
+evt.rawarg
+k8s.deployment.label
+k8s.ns.label
+k8s.pod.label
+k8s.rc.label
+k8s.rs.label
+k8s.svc.label
+proc.aargs
+proc.acmdline
+proc.aenv
+proc.aexe
+proc.aexepath
+proc.aname
+proc.args
+proc.env
+thread.cgroup
